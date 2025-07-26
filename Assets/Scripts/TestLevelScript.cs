@@ -20,7 +20,7 @@ public class TestLevelScript : MonoBehaviour , IPointerClickHandler
     private List<Texture2D> maskTextures=new List<Texture2D>();
     private List<bool> maskActive=new List<bool>();
     private List<Vector2Int> maskSize=new List<Vector2Int>();
-    private List<Vector2Int> maskPosition=new List<Vector2Int>{new Vector2Int(0,0),new Vector2Int(0,0),new Vector2Int(0,0)};
+    private List<Vector2Int> maskPosition=new List<Vector2Int>{new Vector2Int(300,210),new Vector2Int(234,145),new Vector2Int(10,335)};
 
     [SerializeField]
     private ColorPanelScript colorPanelScript;
@@ -50,6 +50,7 @@ public class TestLevelScript : MonoBehaviour , IPointerClickHandler
             Texture2D tex=Resources.Load<Texture2D>(name);
             maskTextures.Add(tex);
             maskSize.Add(new Vector2Int(tex.width,tex.height));
+            Debug.Log(new Vector2Int(tex.width,tex.height));
             maskActive.Add(true);
         }
         for(int i=0;i<maskTextures.Count;i++)
@@ -60,7 +61,6 @@ public class TestLevelScript : MonoBehaviour , IPointerClickHandler
                 return;
             }
         }
-
         combine();
         if (backgroundImage.texture == null)
         {
@@ -68,7 +68,27 @@ public class TestLevelScript : MonoBehaviour , IPointerClickHandler
             return;
         }
 
+        Color bgColor;
+        Color maskColor;
         wonTexture = Resources.Load<Texture2D>("youwon"); 
+        for (int x = 0; x < wonTexture.width; x++)
+        {
+            for (int y = 0; y < wonTexture.height; y++)
+            {
+                maskColor=wonTexture.GetPixel(x,y);
+                if(maskColor.a>0.01f)
+                {
+
+                }
+                else
+                {
+                    bgColor=filledTexture.GetPixel(x,y);
+                    wonTexture.SetPixel(x, y,bgColor ); //Color.red
+                }
+            }
+        }
+        wonTexture.Apply();
+
         if(colorPanelScript == null)
         {
             Debug.LogError("ColorPanelScript is not assigned in the inspector.");
@@ -77,17 +97,16 @@ public class TestLevelScript : MonoBehaviour , IPointerClickHandler
         colorPanelScript.Init(filledTexture);
     }
 
-    bool isOnTexture(Vector2 point, Texture2D texture)
+    bool isOnTexture(Vector2 point, int i)
     {
-        int x = Mathf.RoundToInt(point.x);
-        int y = Mathf.RoundToInt(point.y);
-
+        Texture2D texture=maskTextures[i];
+        Vector2Int pos=maskPosition[i];
+        int x = Mathf.RoundToInt(point.x-pos.x);
+        int y = Mathf.RoundToInt(point.y-pos.y);
         // Check bounds
         if (x < 0 || x >= texture.width || y < 0 || y >= texture.height)
             return false;
-
         Color pixel = texture.GetPixel(x, y);
-        
         // Return true if alpha is greater than a threshold (e.g., 0.01)
         return pixel.a > 0.01f;
     }
@@ -114,25 +133,25 @@ public class TestLevelScript : MonoBehaviour , IPointerClickHandler
         Color maskColor;
         Vector2Int pos;
         Vector2Int size;
-            for(int i=0;i<maskActive.Count;i++)
+        for(int i=0;i<maskActive.Count;i++)
+        {
+            if(maskActive[i])
             {
-                if(maskActive[i])
+                pos=maskPosition[i];
+                size=maskSize[i];
+                for (int x = 0; x < size.x; x++)
                 {
-                    pos=maskPosition[i];
-                    size=maskSize[i];
-                    for (int x = pos.x; x < pos.x+size.x; x++)
+                    for (int y = 0; y < size.y; y++)
                     {
-                        for (int y = pos.y; y < pos.y+size.y; y++)
+                        maskColor=maskTextures[i].GetPixel(x,y);
+                        if(maskColor.a>0.01f)
                         {
-                            maskColor=maskTextures[i].GetPixel(x,y);
-                            if(maskColor.a>0.01f)
-                            {
-                                result.SetPixel(x, y, maskColor);
-                            }
+                            result.SetPixel(x+pos.x, y+pos.y,maskColor ); //Color.red
                         }
                     }
                 }
             }
+        }
         result.Apply();
         backgroundImage.texture=result;
     }
@@ -167,7 +186,7 @@ public class TestLevelScript : MonoBehaviour , IPointerClickHandler
             {
                 if(maskActive[i])
                 {
-                    bool onTexture=isOnTexture(new Vector2(x,y),maskTextures[i]);
+                    bool onTexture=isOnTexture(new Vector2(x,y),i);
                     if(onTexture)
                     {
                         if(color==colorPanelScript.selectedColor)
