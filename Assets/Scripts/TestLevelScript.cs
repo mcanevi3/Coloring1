@@ -19,6 +19,8 @@ public class TestLevelScript : MonoBehaviour , IPointerClickHandler
     private List<string> maskNames=new List<string> {"bee1", "bee2", "bee4"};
     private List<Texture2D> maskTextures=new List<Texture2D>();
     private List<bool> maskActive=new List<bool>();
+    private List<Vector2Int> maskSize=new List<Vector2Int>();
+    private List<Vector2Int> maskPosition=new List<Vector2Int>{new Vector2Int(0,0),new Vector2Int(0,0),new Vector2Int(0,0)};
 
     [SerializeField]
     private ColorPanelScript colorPanelScript;
@@ -45,14 +47,16 @@ public class TestLevelScript : MonoBehaviour , IPointerClickHandler
         filledTexture = Resources.Load<Texture2D>("bee_filled"); 
         foreach (string name in maskNames)
         {
-            maskTextures.Add(Resources.Load<Texture2D>(name));
+            Texture2D tex=Resources.Load<Texture2D>(name);
+            maskTextures.Add(tex);
+            maskSize.Add(new Vector2Int(tex.width,tex.height));
             maskActive.Add(true);
         }
         for(int i=0;i<maskTextures.Count;i++)
         {
             if(maskTextures[i]==null)
             {
-                Debug.Log($"Asset missing {maskNames[i]}");
+                Debug.Log($"Asset missing: {maskNames[i]}");
                 return;
             }
         }
@@ -104,28 +108,31 @@ public class TestLevelScript : MonoBehaviour , IPointerClickHandler
 
     void combine()
     {
-        // Clone the background texture
         Texture2D result = new Texture2D(filledTexture.width, filledTexture.height, TextureFormat.RGBA32, false);
+        result.SetPixels(filledTexture.GetPixels());
+
         Color maskColor;
-        for (int x = 0; x < result.width; x++)
-        {
-            for (int y = 0; y < result.height; y++)
+        Vector2Int pos;
+        Vector2Int size;
+            for(int i=0;i<maskActive.Count;i++)
             {
-                result.SetPixel(x, y, filledTexture.GetPixel(x,y));
-                for(int i=0;i<maskActive.Count;i++)
+                if(maskActive[i])
                 {
-                    if(maskActive[i])
+                    pos=maskPosition[i];
+                    size=maskSize[i];
+                    for (int x = pos.x; x < pos.x+size.x; x++)
                     {
-                        maskColor=maskTextures[i].GetPixel(x,y);
-                        if(maskColor.a>0.01f)
+                        for (int y = pos.y; y < pos.y+size.y; y++)
                         {
-                            result.SetPixel(x, y, maskColor);
+                            maskColor=maskTextures[i].GetPixel(x,y);
+                            if(maskColor.a>0.01f)
+                            {
+                                result.SetPixel(x, y, maskColor);
+                            }
                         }
                     }
                 }
             }
-        }
-
         result.Apply();
         backgroundImage.texture=result;
     }
@@ -151,9 +158,6 @@ public class TestLevelScript : MonoBehaviour , IPointerClickHandler
             Vector2 normalizedPoint = Rect.PointToNormalized(clickableArea.rect, localPoint);
             normalizedPoint.x *= clickableArea.rect.width;
             normalizedPoint.y *= clickableArea.rect.height;
-            // Debug.Log($"Texture Pixel: {normalizedPoint}");
-            // int x = Mathf.FloorToInt(normalizedPoint.x * backgroundImage.texture.width);
-            // int y = Mathf.FloorToInt(normalizedPoint.y * backgroundImage.texture.height);
             int x = Mathf.FloorToInt(normalizedPoint.x);
             int y = Mathf.FloorToInt(normalizedPoint.y);
             
@@ -174,26 +178,6 @@ public class TestLevelScript : MonoBehaviour , IPointerClickHandler
                 }
             }
             combine();
-            // bool is1=false;
-            // bool is2=false;
-            // bool is4=false;
-            // if(empty1!=null)
-            //     is1=isOnTexture(new Vector2(x,y),empty1);
-            // if(empty2!=null)
-            //     is2=isOnTexture(new Vector2(x,y),empty2);
-            // if(empty4!=null)
-            //     is4=isOnTexture(new Vector2(x,y),empty4);
-            
-            // if(color==colorPanelScript.selectedColor)
-            // {
-            //     if(is1)
-            //         empty1=null;
-            //     if(is2)
-            //         empty2=null;
-            //     if(is4)
-            //         empty4=null;
-            //     combine();
-            // }
         }
     }
 
