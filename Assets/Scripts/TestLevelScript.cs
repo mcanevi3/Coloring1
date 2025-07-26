@@ -2,6 +2,7 @@ using UnityEngine;
 using UnityEngine.UI;
 using UnityEngine.SceneManagement;
 using UnityEngine.EventSystems;
+using System.Collections.Generic;
 
 public class TestLevelScript : MonoBehaviour , IPointerClickHandler
 {
@@ -12,12 +13,12 @@ public class TestLevelScript : MonoBehaviour , IPointerClickHandler
     [SerializeField]
     private RectTransform clickableArea;
     
-    private Texture2D texture; //used as storage
     private Texture2D filledTexture;
-    private Texture2D empty1=null;
-    private Texture2D empty2=null;
-    private Texture2D empty4=null;
-    private Texture2D wonTexture; //used as storage
+    private Texture2D wonTexture; 
+
+    private List<string> maskNames=new List<string> {"bee1", "bee2", "bee4"};
+    private List<Texture2D> maskTextures=new List<Texture2D>();
+    private List<bool> maskActive=new List<bool>();
 
     [SerializeField]
     private ColorPanelScript colorPanelScript;
@@ -42,23 +43,28 @@ public class TestLevelScript : MonoBehaviour , IPointerClickHandler
         }
         backgroundImage.color = Color.white;
         filledTexture = Resources.Load<Texture2D>("bee_filled"); 
-        empty1 = Resources.Load<Texture2D>("bee1"); 
-        empty2 = Resources.Load<Texture2D>("bee2"); 
-        empty4 = Resources.Load<Texture2D>("bee4"); 
-        if(empty1==null || empty2==null || empty4==null)
+        foreach (string name in maskNames)
         {
-            Debug.LogError("Empty asset!");
-            return;
+            maskTextures.Add(Resources.Load<Texture2D>(name));
+            maskActive.Add(true);
         }
-        // prepare image
+        for(int i=0;i<maskTextures.Count;i++)
+        {
+            if(maskTextures[i]==null)
+            {
+                Debug.Log($"Asset missing {maskNames[i]}");
+                return;
+            }
+        }
+
         combine();
         if (backgroundImage.texture == null)
         {
             Debug.LogError("Background image texture is not assigned or not found.");
             return;
         }
-        wonTexture = Resources.Load<Texture2D>("youwon"); 
 
+        wonTexture = Resources.Load<Texture2D>("youwon"); 
         if(colorPanelScript == null)
         {
             Debug.LogError("ColorPanelScript is not assigned in the inspector.");
@@ -67,17 +73,6 @@ public class TestLevelScript : MonoBehaviour , IPointerClickHandler
         colorPanelScript.Init(filledTexture);
     }
 
-    void combine()
-    {
-        texture=filledTexture;
-        if(empty1!=null)
-            texture=OverlayTextures(texture,empty1);
-        if(empty2!=null)
-            texture=OverlayTextures(texture,empty2);
-        if(empty4!=null)
-            texture=OverlayTextures(texture,empty4);
-        backgroundImage.texture = texture;
-    }
     bool isOnTexture(Vector2 point, Texture2D texture)
     {
         int x = Mathf.RoundToInt(point.x);
@@ -92,36 +87,47 @@ public class TestLevelScript : MonoBehaviour , IPointerClickHandler
         // Return true if alpha is greater than a threshold (e.g., 0.01)
         return pixel.a > 0.01f;
     }
-    Texture2D OverlayTextures(Texture2D background, Texture2D foreground, int offsetX = 0, int offsetY = 0)
+    
+    bool masksRemain()
+    {
+        bool maskRemaining = false;
+        foreach (bool value in maskActive)
+        {
+            if (value)
+            {
+                maskRemaining = true;
+                break;
+            }
+        }
+        return maskRemaining;
+    }
+
+    void combine()
     {
         // Clone the background texture
-        Texture2D result = new Texture2D(background.width, background.height, TextureFormat.RGBA32, false);
-        result.SetPixels(background.GetPixels());
-
-        // Loop through foreground pixels and blend onto background
-        for (int x = 0; x < foreground.width; x++)
+        Texture2D result = new Texture2D(filledTexture.width, filledTexture.height, TextureFormat.RGBA32, false);
+        Color maskColor;
+        for (int x = 0; x < result.width; x++)
         {
-            for (int y = 0; y < foreground.height; y++)
+            for (int y = 0; y < result.height; y++)
             {
-                int px = x + offsetX;
-                int py = y + offsetY;
-
-                if (px < 0 || px >= background.width || py < 0 || py >= background.height)
-                    continue;
-
-                Color bgColor = result.GetPixel(px, py);
-                Color fgColor = foreground.GetPixel(x, y);
-                if(fgColor.a>0.01f)
+                result.SetPixel(x, y, filledTexture.GetPixel(x,y));
+                for(int i=0;i<maskActive.Count;i++)
                 {
-                    result.SetPixel(px, py, fgColor);
+                    if(maskActive[i])
+                    {
+                        maskColor=maskTextures[i].GetPixel(x,y);
+                        if(maskColor.a>0.01f)
+                        {
+                            result.SetPixel(x, y, maskColor);
+                        }
+                    }
                 }
-                // Color blended = Color.Lerp(bgColor, fgColor, fgColor.a);
-                
             }
         }
 
         result.Apply();
-        return result;
+        backgroundImage.texture=result;
     }
 
     void OnDisable()
@@ -153,32 +159,47 @@ public class TestLevelScript : MonoBehaviour , IPointerClickHandler
             
             Color color = filledTexture.GetPixel(x,y);
 
-            bool is1=false;
-            bool is2=false;
-            bool is4=false;
-            if(empty1!=null)
-                is1=isOnTexture(new Vector2(x,y),empty1);
-            if(empty2!=null)
-                is2=isOnTexture(new Vector2(x,y),empty2);
-            if(empty4!=null)
-                is4=isOnTexture(new Vector2(x,y),empty4);
-            
-            if(color==colorPanelScript.selectedColor)
+            for(int i=0;i<maskActive.Count;i++)
             {
-                if(is1)
-                    empty1=null;
-                if(is2)
-                    empty2=null;
-                if(is4)
-                    empty4=null;
-                combine();
+                if(maskActive[i])
+                {
+                    bool onTexture=isOnTexture(new Vector2(x,y),maskTextures[i]);
+                    if(onTexture)
+                    {
+                        if(color==colorPanelScript.selectedColor)
+                        {
+                            maskActive[i]=false;
+                        }
+                    }
+                }
             }
+            combine();
+            // bool is1=false;
+            // bool is2=false;
+            // bool is4=false;
+            // if(empty1!=null)
+            //     is1=isOnTexture(new Vector2(x,y),empty1);
+            // if(empty2!=null)
+            //     is2=isOnTexture(new Vector2(x,y),empty2);
+            // if(empty4!=null)
+            //     is4=isOnTexture(new Vector2(x,y),empty4);
+            
+            // if(color==colorPanelScript.selectedColor)
+            // {
+            //     if(is1)
+            //         empty1=null;
+            //     if(is2)
+            //         empty2=null;
+            //     if(is4)
+            //         empty4=null;
+            //     combine();
+            // }
         }
     }
 
     void Update()
     {
-        if(empty1==null && empty2==null && empty4==null)
+        if(!masksRemain())
         {
             backgroundImage.texture=wonTexture;
         }
